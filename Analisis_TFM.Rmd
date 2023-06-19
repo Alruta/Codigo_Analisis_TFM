@@ -1,0 +1,2049 @@
+---
+title: "Analisis de expresión diferencial entee co y monocultivo entre S. cerevisiae y S. uvarum"
+author: "Alvaro Ruiz Tabas"
+date: "2023-04-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. DATASET COMPLETO
+## 1.1. Diseño
+```{r}
+cultivo <- factor(rep(c("mono","co","co", "mono", "co", "mono", "co"), each = 9))
+tiempo <- factor(rep(rep(c("Ct1", "Ct2", "Ct3"), each = 3), 7))
+competidor <- factor(rep(c("0","BMV", "CECT", "0","T73", "0", "T73"), each = 9))
+batch <- factor(c(rep("1", 9), rep("2", 54)))
+grupo <- factor(rep(c("T73_mono", "T73+BMV", "T73+CECT", "BMV_mono", "BMV_co", "CECT_mono", "CECT_co"), each = 9))
+grupo_y_Ct <- factor(rep(c("T73_mono_Ct1", "T73_mono_Ct2", "T73_mono_Ct3",
+                      "T73+BMV_Ct1", "T73+BMV_Ct2", "T73+BMV_Ct3",
+                      "T73+CECT_Ct1", "T73+CECT_Ct2", "T73+CECT_Ct3",
+                      "BMV_mono_Ct1", "BMV_mono_Ct2", "BMV_mono_Ct3", 
+                      "BMV_co_Ct1", "BMV_co_Ct2", "BMV_co_Ct3", 
+                      "CECT_mono_Ct1", "CECT_mono_Ct2", "CECT_mono_Ct3",
+                      "CECT_co_Ct1", "CECT_co_Ct2", "CECT_co_Ct3"), each = 3))
+cepa <- factor(rep(c("T73", "T73", "T73", "BMV", "BMV", "CECT", "CECT"), each = 9))
+diseño <- data.frame(cultivo, tiempo, cepa, competidor, grupo, grupo_y_Ct, batch, 
+                     row.names = c("T73_mono_Ct1_A", "T73_mono_Ct1_B", "T73_mono_Ct1_C", 
+                                   "T73_mono_Ct2_A", "T73_mono_Ct2_B", "T73_mono_Ct2_C", 
+                                   "T73_mono_Ct3_A", "T73_mono_Ct3_B", "T73_mono_Ct3_C",
+                                   "T73+BMV_Ct1_A", "T73+BMV_Ct1_B", "T73+BMV_Ct1_C", 
+                                   "T73+BMV_Ct2_A", "T73+BMV_Ct2_B", "T73+BMV_Ct2_C", 
+                                   "T73+BMV_Ct3_A", "T73+BMV_Ct3_B", "T73+BMV_Ct3_C",
+                                   "T73+CECT_Ct1_A", "T73+CECT_Ct1_B", "T73+CECT_Ct1_C", 
+                                   "T73+CECT_Ct2_A", "T73+CECT_Ct2_B", "T73+CECT_Ct2_C", 
+                                   "T73+CECT_Ct3_A", "T73+CECT_Ct3_B", "T73+CECT_Ct3_C",
+                                   "BMV_mono_Ct1_A", "BMV_mono_Ct1_B", "BMV_mono_Ct1_C", 
+                                   "BMV_mono_Ct2_A", "BMV_mono_Ct2_B", "BMV_mono_Ct2_C", 
+                                   "BMV_mono_Ct3_A", "BMV_mono_Ct3_B", "BMV_mono_Ct3_C",
+                                   "BMV_co_Ct1_A", "BMV_co_Ct1_B", "BMV_co_Ct1_C", 
+                                   "BMV_co_Ct2_A", "BMV_co_Ct2_B", "BMV_co_Ct2_C", 
+                                   "BMV_co_Ct3_A", "BMV_co_Ct3_B", "BMV_co_Ct3_C",
+                                   "CECT_mono_Ct1_A", "CECT_mono_Ct1_B", "CECT_mono_Ct1_C", 
+                                   "CECT_mono_Ct2_A", "CECT_mono_Ct2_B", "CECT_mono_Ct2_C", 
+                                   "CECT_mono_Ct3_A", "CECT_mono_Ct3_B", "CECT_mono_Ct3_C",
+                                   "CECT_co_Ct1_A", "CECT_co_Ct1_B", "CECT_co_Ct1_C", 
+                                   "CECT_co_Ct2_A", "CECT_co_Ct2_B", "CECT_co_Ct2_C", 
+                                   "CECT_co_Ct3_A", "CECT_co_Ct3_B", "CECT_co_Ct3_C"
+                                   ))
+diseño
+```
+
+
+## 1.2. Carga de datos
+```{r}
+library(edgeR)
+
+samples <- read.table("/media/alvaro/DISCO_DURO_ART/TFM/Analisis/All_variables/Files.txt", head = TRUE) 
+
+DGE_List<- readDGE(samples, 
+                   path = "/media/alvaro/DISCO_DURO_ART/TFM/Analisis/All_variables/",
+                   group = c(rep(c("T73_mono_Ct1", "T73_mono_Ct2", "T73_mono_Ct3"), each = 3), 
+                             rep(c("T73+BMV_Ct1", "T73+BMV_Ct2", "T73+BMV_Ct3"), each = 3),
+                             rep(c("T73+CECT_Ct1", "T73+CECT_Ct2", "T73+CECT_Ct3"), each = 3),
+                             rep(c("BMV_mono_Ct1", "BMV_mono_Ct2", "BMV_mono_Ct3", 
+                                   "BMV_co_Ct1", "BMV_co_Ct2", "BMV_co_Ct3", 
+                                   "CECT_mono_Ct1", "CECT_mono_Ct2", "CECT_mono_Ct3",
+                                   "CECT_co_Ct1", "CECT_co_Ct2", "CECT_co_Ct3"), each =3)),
+                   labels = row.names(diseño))
+
+counts <- DGE_List$counts
+colnames(counts) <- row.names(diseño)
+dim(counts)
+
+head(DGE_List$samples)
+```
+
+Sincronizacion entre diseño y matriz de conteos
+```{r Comprobación de "sincronización" entre archivos}
+
+all(colnames(counts) %in% rownames(diseño))
+# Comprobación de el nombre de las filas de Coldata es igual al nombre de las columnas de counts_data
+
+all(colnames(counts) == rownames(diseño))
+# Comprobación de si están en el mismo orden 
+```
+
+## 1.3. Filtrado
+```{r}
+counts <- counts[rowSums(counts) > 10,]
+dim(counts)
+```
+
+
+```{r, message=FALSE}
+library(DESeq2)
+```
+
+Matriz de diseño
+```{r}
+diseño$grupo_y_Ct <- relevel(diseño$grupo_y_Ct, ref = "T73_mono_Ct1")
+model.matrix(~ grupo_y_Ct, diseño)
+```
+
+## 1.4. Plot MDS batch effect
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = counts,
+                              colData = diseño, 
+                              design = ~ grupo_y_Ct)
+
+dds <- DESeq(dds)
+resultsNames(dds)
+
+```
+
+```{r}
+diseño$grupo <- relevel(diseño$grupo, ref = "T73_mono")
+colors <- c("black", "pink", "purple", "blue", "red", "yellow", "green")
+form <- c(19, 17)
+col <- colors[as.numeric(diseño$grupo)]
+pch <- form[as.numeric(diseño$batch)]
+
+par(mar=c(5, 4, 4, 8), xpd=TRUE)
+plotMDS(dds, col= col, pch = pch, xlab = "PC1", ylab = "PC2")
+legend("topright", inset = c(-0.28, 0.5), legend= c(levels(diseño$grupo)), 
+       col= colors, pch = 19, bty = "n", title = "Muestra")
+legend("topright", inset=c(-0.2, 0.1), legend = c(levels(diseño$batch)),  pch = form, bty = "n", title = "Batch")
+title(main = "Efecto batch general")
+
+
+
+plotMDS(dds)
+
+```
+
+
+## *Extraigo los counts normalizados
+```{r}
+norm_counts <- counts(dds, normalized = TRUE)
+```
+## 1.5. T73+BMV vs T73_mono
+
+
+### > CT1 T73+BMV
+
+El dds generado me permite hacer todas las comapraciones entre grupos con contrast.
+```{r, message=FALSE}
+
+dds <- DESeqDataSetFromMatrix(countData = counts,
+                              colData = diseño, 
+                              design = ~ grupo_y_Ct)
+
+dds$grupo_y_Ct <- relevel(dds$grupo_y_Ct, ref = "T73_mono_Ct1")
+# Monocultivo de T73 como referencia
+
+dds <- DESeq(dds)
+resultsNames(dds)
+```
+
+
+```{r}
+res <- results(dds, 
+               name = "grupo_y_Ct_T73.BMV_Ct1_vs_T73_mono_Ct1",
+               # contrast = c("grupo_y_Ct", "T73+BMV_Ct1", "T73_mono_Ct1"), es igual
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YBR072W",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YBR072W", c("T73_mono_Ct1_A", "T73_mono_Ct1_B", "T73_mono_Ct1_C", "T73+BMV_Ct1_A",   "T73+BMV_Ct1_B", "T73+BMV_Ct1_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+T73.BMV_Ct1_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+T73.BMV_Ct1_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(T73.BMV_Ct1_UP_FullDataset)
+length(T73.BMV_Ct1_DOWN_FullDataset)
+
+write.table(T73.BMV_Ct1_UP_FullDataset, "T73.BMV_Ct1_UP_FullDataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.BMV_Ct1_DOWN_FullDataset, "T73.BMV_Ct1_DOWN_FullDataset", row.names = FALSE, col.names = FALSE)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+T73.BMV_Ct1_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.BMV_Ct1_LFC_FullDataset <- as.data.frame(T73.BMV_Ct1_LFC_FullDataset)
+```
+
+### > CT2 T73+BMV
+
+Usamos el dds anterior seleccionando los grupos a comparar
+```{r}
+res <- results(dds, 
+               contrast=c("grupo_y_Ct", "T73+BMV_Ct2", "T73_mono_Ct2"),
+                 #list(c("grupo_T73.BMV_vs_T73_mono", "tiempoCt2.grupoT73.BMV" )), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YBL072C",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YBL072C", c("T73_mono_Ct2_A", "T73_mono_Ct2_B", "T73_mono_Ct2_C", "T73+BMV_Ct2_A",   "T73+BMV_Ct2_B", "T73+BMV_Ct2_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+T73.BMV_Ct2_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+T73.BMV_Ct2_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(T73.BMV_Ct2_UP_FullDataset)
+length(T73.BMV_Ct2_DOWN_FullDataset)
+
+write.table(T73.BMV_Ct2_UP_FullDataset, "T73.BMV_Ct2_UP_FullDataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.BMV_Ct2_DOWN_FullDataset, "T73.BMV_Ct2_DOWN_FullDataset", row.names = FALSE, col.names = FALSE)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+T73.BMV_Ct2_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.BMV_Ct2_LFC_FullDataset <- as.data.frame(T73.BMV_Ct2_LFC_FullDataset)
+```
+
+### > CT3 T73+BMV 
+
+```{r}
+res <- results(dds, 
+               contrast=c("grupo_y_Ct", "T73+BMV_Ct3", "T73_mono_Ct3"),
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YAL055W",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YAL055W", c("T73_mono_Ct3_A", "T73_mono_Ct3_B", "T73_mono_Ct3_C", "T73+BMV_Ct3_A",   "T73+BMV_Ct3_B", "T73+BMV_Ct3_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+T73.BMV_Ct3_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+T73.BMV_Ct3_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(T73.BMV_Ct3_UP_FullDataset)
+length(T73.BMV_Ct3_DOWN_FullDataset)
+
+write.table(T73.BMV_Ct3_UP_FullDataset, "T73.BMV_Ct3_UP_FullDataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.BMV_Ct3_DOWN_FullDataset, "T73.BMV_Ct3_DOWN_FullDataset", row.names = FALSE, col.names = FALSE)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+T73.BMV_Ct3_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.BMV_Ct3_LFC_FullDataset <- as.data.frame(T73.BMV_Ct3_LFC_FullDataset)
+```
+
+## 1.6. T73+CECT vs T73_mono
+
+
+### > CT1 T73+CECT 
+
+```{r}
+res <- results(dds, 
+               name = "grupo_y_Ct_T73.CECT_Ct1_vs_T73_mono_Ct1",
+               #contrast=c("grupo_y_Ct", "T73+CECT_Ct1", "T73_mono_C1"), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YBR072W",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YBR072W", c("T73_mono_Ct1_A", "T73_mono_Ct1_B", "T73_mono_Ct1_C", "T73+CECT_Ct1_A",   "T73+CECT_Ct1_B", "T73+CECT_Ct1_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+T73.CECT_Ct1_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+T73.CECT_Ct1_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(T73.CECT_Ct1_UP_FullDataset)
+length(T73.CECT_Ct1_DOWN_FullDataset)
+
+write.table(T73.CECT_Ct1_UP_FullDataset , "T73.CECT_Ct1_UP_FullDataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.CECT_Ct1_DOWN_FullDataset , "T73.CECT_Ct1_DOWN_FullDataset", row.names = FALSE, col.names = FALSE)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+T73.CECT_Ct1_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.CECT_Ct1_LFC_FullDataset <- as.data.frame(T73.CECT_Ct1_LFC_FullDataset)
+```
+
+
+### > CT2 T73+CECT
+
+```{r}
+res <- results(dds, 
+               contrast=c("grupo_y_Ct", "T73+CECT_Ct2", "T73_mono_Ct2" ), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YBL072C",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YBL072C", c("T73_mono_Ct2_A", "T73_mono_Ct2_B", "T73_mono_Ct2_C", "T73+CECT_Ct2_A",   "T73+CECT_Ct2_B", "T73+CECT_Ct2_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+T73.CECT_Ct2_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+T73.CECT_Ct2_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(T73.CECT_Ct2_UP_FullDataset)
+length(T73.CECT_Ct2_DOWN_FullDataset)
+
+write.table(T73.CECT_Ct2_UP_FullDataset , "T73.CECT_Ct2_UP_FullDataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.CECT_Ct2_DOWN_FullDataset , "T73.CECT_Ct2_DOWN_FullDataset", row.names = FALSE, col.names = FALSE)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+T73.CECT_Ct2_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.CECT_Ct2_LFC_FullDataset <- as.data.frame(T73.CECT_Ct2_LFC_FullDataset)
+```
+
+### > CT3 T73+CECT
+
+```{r}
+res <- results(dds,
+               contrast=c("grupo_y_Ct", "T73+CECT_Ct3", "T73_mono_Ct3" ),
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YBL072C",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YBL072C", c("T73_mono_Ct3_A", "T73_mono_Ct3_B", "T73_mono_Ct3_C", "T73+CECT_Ct3_A",   "T73+CECT_Ct3_B", "T73+CECT_Ct3_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+T73.CECT_Ct3_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+T73.CECT_Ct3_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(T73.CECT_Ct3_UP_FullDataset)
+length(T73.CECT_Ct3_DOWN_FullDataset)
+
+write.table(T73.CECT_Ct3_UP_FullDataset , "T73.CECT_Ct3_UP_FullDataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.CECT_Ct3_DOWN_FullDataset , "T73.CECT_Ct3_DOWN_FullDataset", row.names = FALSE, col.names = FALSE)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+T73.CECT_Ct3_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.CECT_Ct3_LFC_FullDataset <- as.data.frame(T73.CECT_Ct3_LFC_FullDataset)
+```
+
+
+## 1.7. BMV_co vs BMV_mono
+
+AQUI PONEMOS BMV_MONO COMO REFERENCIA EL EL TIEMPO SEGUN NOS CONVENGA COMO ANTES 
+
+### > CT1 BMV_co 
+
+```{r}
+res <- results(dds, 
+               contrast= c("grupo_y_Ct" ,"BMV_co_Ct1", "BMV_mono_Ct1" ), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YOL154W",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YOL154W", c("BMV_mono_Ct1_A", "BMV_mono_Ct1_B", "BMV_mono_Ct1_C", "BMV_co_Ct1_A",   "BMV_co_Ct1_B", "BMV_co_Ct1_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+BMV_co_Ct1_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+BMV_co_Ct1_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(BMV_co_Ct1_UP_FullDataset)
+length(BMV_co_Ct1_DOWN_FullDataset)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+BMV_co_Ct1_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+BMV_co_Ct1_LFC_FullDataset <- as.data.frame(BMV_co_Ct1_LFC_FullDataset)
+```
+
+
+### > CT2 BMV_co 
+
+```{r}
+res <- results(dds, 
+               contrast= c("grupo_y_Ct" ,"BMV_co_Ct2", "BMV_mono_Ct2" ), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YOL154W",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YOL154W", c("BMV_mono_Ct1_A", "BMV_mono_Ct1_B", "BMV_mono_Ct1_C", "BMV_co_Ct1_A",   "BMV_co_Ct1_B", "BMV_co_Ct1_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+BMV_co_Ct2_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+BMV_co_Ct2_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(BMV_co_Ct2_UP_FullDataset)
+length(BMV_co_Ct2_DOWN_FullDataset)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+BMV_co_Ct2_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+BMV_co_Ct2_LFC_FullDataset <- as.data.frame(BMV_co_Ct2_LFC_FullDataset)
+```
+
+### > CT3 BMV_co 
+
+```{r}
+res <- results(dds, 
+               contrast= c("grupo_y_Ct" ,"BMV_co_Ct3", "BMV_mono_Ct3" ),
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["REP1",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["REP1", c("BMV_mono_Ct3_A", "BMV_mono_Ct3_B", "BMV_mono_Ct3_C", "BMV_co_Ct3_A",   "BMV_co_Ct3_B", "BMV_co_Ct3_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+BMV_co_Ct3_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+BMV_co_Ct3_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(BMV_co_Ct3_UP_FullDataset)
+length(BMV_co_Ct3_DOWN_FullDataset)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+BMV_co_Ct3_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+BMV_co_Ct3_LFC_FullDataset <- as.data.frame(BMV_co_Ct3_LFC_FullDataset)
+```
+
+## 1.8. CECT_co vs CECT_mono
+
+### > CT1 CECT_co 
+
+```{r}
+res <- results(dds, 
+               contrast= c("grupo_y_Ct" ,"CECT_co_Ct1", "CECT_mono_Ct1" ),
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YPL223C",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YPL223C", c("CECT_mono_Ct1_A", "CECT_mono_Ct1_B", "CECT_mono_Ct1_C", "CECT_co_Ct1_A",   "CECT_co_Ct1_B", "CECT_co_Ct1_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+CECT_co_Ct1_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+CECT_co_Ct1_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(CECT_co_Ct1_UP_FullDataset)
+length(CECT_co_Ct1_DOWN_FullDataset)
+```
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+CECT_co_Ct1_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+CECT_co_Ct1_LFC_FullDataset <- as.data.frame(CECT_co_Ct1_LFC_FullDataset)
+```
+
+### > CT2 CECT_co 
+
+```{r}
+res <- results(dds,
+               contrast= c("grupo_y_Ct" ,"CECT_co_Ct2", "CECT_mono_Ct2" ),
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YGL255W",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["YGL255W", c("CECT_mono_Ct2_A", "CECT_mono_Ct2_B", "CECT_mono_Ct2_C", "CECT_co_Ct2_A",   "CECT_co_Ct2_B", "CECT_co_Ct2_C")], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+CECT_co_Ct2_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+CECT_co_Ct2_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(CECT_co_Ct2_UP_FullDataset)
+length(CECT_co_Ct2_DOWN_FullDataset)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+CECT_co_Ct2_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+CECT_co_Ct2_LFC_FullDataset <- as.data.frame(CECT_co_Ct2_LFC_FullDataset)
+```
+
+
+### > CT3 CECT_co 
+
+```{r}
+res <- results(dds,
+               contrast= c("grupo_y_Ct" ,"CECT_co_Ct3", "CECT_mono_Ct3" ),
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res[order(res$padj),]
+summary(res)
+```
+
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["REP1",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds)["REP1", c("CECT_mono_Ct3_A", "CECT_mono_Ct3_B", "CECT_mono_Ct3_C", "CECT_co_Ct3_A",   "CECT_co_Ct3_B", "CECT_co_Ct3_C")], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res <- na.omit(res)
+CECT_co_Ct3_UP_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange >=1,])
+CECT_co_Ct3_DOWN_FullDataset <- row.names(res[res$padj < 0.05 & res$log2FoldChange <=1,])
+length(CECT_co_Ct3_UP_FullDataset)
+length(CECT_co_Ct3_DOWN_FullDataset)
+```
+
+Extraccion LFC y padj
+```{r}
+res<- na.omit(res) # Requiere res sin ordenar por padj
+CECT_co_Ct3_LFC_FullDataset <- res[res$padj < 0.05 & abs(res$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+CECT_co_Ct3_LFC_FullDataset <- as.data.frame(CECT_co_Ct3_LFC_FullDataset)
+```
+
+
+## 1.9. Comparaciones T73+BMV vs T73+CECT (VENN)
+
+### > CT1
+```{r}
+library(venn)
+venn(list("T73+BMV_Ct1_UP_FullDataset"=T73.BMV_Ct1_UP_FullDataset,
+          "T73+BMV_Ct1_DOWN_FullDataset"=T73.BMV_Ct1_DOWN_FullDataset, 
+          "T73+CECT_Ct1_UP_FullDataset"=T73.CECT_Ct1_UP_FullDataset, 
+          "T73+CECT_Ct1_DOWN_FullDataset"=T73.CECT_Ct1_DOWN_FullDataset),
+   zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"))
+```
+
+### > CT2
+```{r}
+venn(list("T73+BMV_Ct2_UP_FullDataset"=T73.BMV_Ct2_UP_FullDataset,
+          "T73+BMV_Ct2_DOWN_FullDataset"=T73.BMV_Ct2_DOWN_FullDataset, 
+          "T73+CECT_Ct2_UP_FullDataset"=T73.CECT_Ct2_UP_FullDataset, 
+          "T73+CECT_Ct2_DOWN_FullDataset"=T73.CECT_Ct2_DOWN_FullDataset),
+   zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"))
+```
+
+### > Ct3
+```{r}
+venn(list("T73+BMV_Ct3_UP_FullDataset"=T73.BMV_Ct3_UP_FullDataset,
+          "T73+BMV_Ct3_DOWN_FullDataset"=T73.BMV_Ct3_DOWN_FullDataset, 
+          "T73+CECT_Ct3_UP_FullDataset"=T73.CECT_Ct3_UP_FullDataset, 
+          "T73+CECT_Ct3_DOWN_FullDataset"=T73.CECT_Ct3_DOWN_FullDataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"))
+```
+
+```{r}
+library(UpSetR)
+InputList <- list("T73+BMV_Ct3_UP_FullDataset"=T73.BMV_Ct3_UP_FullDataset,
+          "T73+BMV_Ct3_DOWN_FullDataset"=T73.BMV_Ct3_DOWN_FullDataset, 
+          "T73+CECT_Ct3_UP_FullDataset"=T73.CECT_Ct3_UP_FullDataset, 
+          "T73+CECT_Ct3_DOWN_FullDataset"=T73.CECT_Ct3_DOWN_FullDataset,
+          "T73+BMV_Ct2_UP_FullDataset"=T73.BMV_Ct2_UP_FullDataset,
+          "T73+BMV_Ct2_DOWN_FullDataset"=T73.BMV_Ct2_DOWN_FullDataset, 
+          "T73+CECT_Ct2_UP_FullDataset"=T73.CECT_Ct2_UP_FullDataset, 
+          "T73+CECT_Ct2_DOWN_FullDataset"=T73.CECT_Ct2_DOWN_FullDataset,
+          "T73+BMV_Ct1_UP_FullDataset"=T73.BMV_Ct1_UP_FullDataset,
+          "T73+BMV_Ct1_DOWN_FullDataset"=T73.BMV_Ct1_DOWN_FullDataset, 
+          "T73+CECT_Ct1_UP_FullDataset"=T73.CECT_Ct1_UP_FullDataset, 
+          "T73+CECT_Ct1_DOWN_FullDataset"=T73.CECT_Ct1_DOWN_FullDataset)
+
+upset(fromList(InputList), nsets = 12, #nintersects = 40, 
+      order.by = "freq", cutoff = 3, mainbar.y.label = "Groups Intersections",
+      sets.x.label = "Genes per group")
+
+
+```
+
+# 2. DATASET T73
+
+## 2.1. Diseño_T73
+```{r}
+cultivo_T73 <- factor(rep(c("mono","co","co"), each = 9))
+tiempo_T73 <- factor(rep(rep(c("Ct1", "Ct2", "Ct3"), each = 3), 3))
+competidor_T73 <- factor(rep(c("0","BMV", "CECT"), each = 9))
+batch_T73 <- factor(c(rep("1", 9), rep("2", 18)))
+grupo_T73 <- factor(rep(c("T73_mono", "T73+BMV", "T73+CECT"), each = 9))
+cepa_T73 <- factor(rep(c("T73", "T73", "T73"), each = 9))
+grupo_y_Ct_T73 <- factor(rep(c("T73_mono_Ct1", "T73_mono_Ct2", "T73_mono_Ct3",
+                      "T73+BMV_Ct1", "T73+BMV_Ct2", "T73+BMV_Ct3",
+                      "T73+CECT_Ct1", "T73+CECT_Ct2", "T73+CECT_Ct3"), each = 3))
+diseño_T73 <- data.frame(cultivo_T73, tiempo_T73, cepa_T73, competidor_T73, grupo_T73, 
+                         grupo_y_Ct_T73, batch_T73, 
+                     row.names = c("T73_mono_Ct1_A", "T73_mono_Ct1_B", "T73_mono_Ct1_C", 
+                                   "T73_mono_Ct2_A", "T73_mono_Ct2_B", "T73_mono_Ct2_C", 
+                                   "T73_mono_Ct3_A", "T73_mono_Ct3_B", "T73_mono_Ct3_C",
+                                   "T73+BMV_Ct1_A", "T73+BMV_Ct1_B", "T73+BMV_Ct1_C", 
+                                   "T73+BMV_Ct2_A", "T73+BMV_Ct2_B", "T73+BMV_Ct2_C", 
+                                   "T73+BMV_Ct3_A", "T73+BMV_Ct3_B", "T73+BMV_Ct3_C",
+                                   "T73+CECT_Ct1_A", "T73+CECT_Ct1_B", "T73+CECT_Ct1_C", 
+                                   "T73+CECT_Ct2_A", "T73+CECT_Ct2_B", "T73+CECT_Ct2_C", 
+                                   "T73+CECT_Ct3_A", "T73+CECT_Ct3_B", "T73+CECT_Ct3_C"
+                                   ))
+diseño_T73
+```
+
+## 2.2. Carga de datos
+```{r}
+library(edgeR)
+
+samples_T73 <- read.table("/media/alvaro/DISCO_DURO_ART/TFM/Analisis/All_variables/Files_T73.txt", head = TRUE) 
+
+DGE_List_T73<- readDGE(samples_T73, 
+                   path = "/media/alvaro/DISCO_DURO_ART/TFM/Analisis/All_variables/",
+                   group = c(rep(c("T73_mono_Ct1", "T73_mono_Ct2", "T73_mono_Ct3"), each = 3), 
+                             rep(c("T73+BMV_Ct1", "T73+BMV_Ct2", "T73+BMV_Ct3"), each = 3),
+                             rep(c("T73+CECT_Ct1", "T73+CECT_Ct2", "T73+CECT_Ct3"), each = 3)),
+                   labels = row.names(diseño_T73))
+
+counts_T73 <- DGE_List_T73$counts
+colnames(counts_T73) <- row.names(diseño_T73)
+dim(counts_T73)
+
+head(DGE_List_T73$samples)
+```
+
+## 2.3. Filtrado
+```{r}
+counts_T73 <- counts_T73[rowSums(counts_T73) > 10,]
+dim(counts_T73)
+```
+
+## 2.4. MDS 
+
+```{r, message=FALSE}
+dds_T73 <- DESeqDataSetFromMatrix(countData = counts_T73,
+                              colData = diseño_T73, 
+                              design = ~ grupo_T73)
+
+
+dds_T73$grupo_T73 <- relevel(dds_T73$grupo_T73, ref = "T73_mono")
+# Monocultivo de T73 como referencia
+
+
+dds_T73 <- DESeq(dds_T73)
+resultsNames(dds_T73)
+#head(coef(dds))
+
+
+```
+### > Con grupo y batch
+```{r}
+colors <- c("black", "yellow", "green")
+form <- c(19, 17)
+col <- colors[as.numeric(diseño_T73$grupo_T73)]
+pch <- form[as.numeric(diseño_T73$batch_T73)]
+
+par(mar=c(5,4,4,8), xpd=TRUE)
+plotMDS(dds_T73, col= col, pch = pch, xlab = "PC1", ylab = "PC2", cex = 1.2)
+legend("topright",inset = c(-0.28, 0.5), legend= c(levels(diseño_T73$grupo_T73)), 
+       col= colors, pch = 19, bty = "n", title = "Muestra")
+legend("topright",inset = c(-0.2, 0.1), legend = c(levels(diseño_T73$batch_T73)),  pch = form,
+        bty = "n", title = "Batch")
+title(main = "Efecto batch en S. cerevisiae")
+
+
+plotMDS(dds_T73)
+
+```
+
+### > Con grupo y tiempo 
+```{r}
+colors <- c("black", "yellow", "green")
+form <- c(15, 16, 17)
+col <- colors[as.numeric(diseño_T73$grupo_T73)]
+pch <- form[as.numeric(diseño_T73$tiempo_T73)]
+
+par(mar=c(5,4,4,8), xpd=TRUE)
+plotMDS(dds_T73, col= col, pch = pch, xlab = "PC1", ylab = "PC2", cex = 1.2)
+legend("topright",inset = c(-0.28, 0.5), legend= c(levels(diseño_T73$grupo_T73)), 
+       col= colors, pch = 19, bty = "n", title = "Muestra")
+legend("topright",inset = c(-0.2, 0.1), legend = c(levels(diseño_T73$tiempo_T73)),  pch = form,  bty = "n", title = "Fase")
+title(main = "Fase y grupo en S. cerevisiae")
+
+
+
+plotMDS(dds_T73)
+
+```
+
+## *Extraigo los counts normalizados
+```{r}
+norm_counts_T73 <- counts(dds_T73, normalized = TRUE)
+```
+
+## *Extraigo background genes
+```{r}
+Background_genes_T73Dataset <- row.names(dds_T73)
+write.table(Background_genes_T73Dataset, "Background_genes_T73.txt", row.names = FALSE, col.names = FALSE)
+```
+## 2.5. T73+BMV vs T73_mono
+
+### > CT1 T73+BMV
+
+Este dds me sirve para hacer el resto de comparaciones en este dataset
+```{r, message=FALSE}
+dds_T73 <- DESeqDataSetFromMatrix(countData = counts_T73,
+                              colData = diseño_T73, 
+                              design = ~ grupo_y_Ct_T73)
+
+dds_T73$grupo_y_Ct_T73 <- relevel(dds_T73$grupo_y_Ct_T73, ref = "T73_mono_Ct1")
+# Monocultivo de T73 a Ct1  como referencia
+
+
+dds_T73 <- DESeq(dds_T73)
+resultsNames(dds_T73)
+#head(coef(dds))
+
+
+```
+
+```{r}
+
+res_T73 <- results(dds_T73, 
+               name = "grupo_y_Ct_T73_T73.BMV_Ct1_vs_T73_mono_Ct1", 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res_T73[order(res_T73$padj),]
+summary(res_T73)
+
+res_T73 <- na.omit(res_T73)
+DEdata <- as.data.frame(res_T73[, c(2,6)])
+
+DEdata_comunes <- DEdata[UP_comunes,]
+write.csv(DEdata_comunes, "DEdata_UP_comunes.csv", quote = FALSE)
+
+DEdata_comunes <- DEdata[DOWN_comunes,]
+write.csv(DEdata_comunes, "DEdata_DOWN_comunes.csv", quote = FALSE)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YBR072W",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YBR072W", c("T73_mono_Ct1_A", "T73_mono_Ct1_B", "T73_mono_Ct1_C", "T73+BMV_Ct1_A",   "T73+BMV_Ct1_B", "T73+BMV_Ct1_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_T73 <- na.omit(res_T73)
+T73.BMV_Ct1_UP_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange >=1,])
+T73.BMV_Ct1_DOWN_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange <=-1,])
+length(T73.BMV_Ct1_UP_T73Dataset)
+length(T73.BMV_Ct1_DOWN_T73Dataset)
+write.table(T73.BMV_Ct1_UP_T73Dataset, "T73.BMV_Ct1_UP_T73Dataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.BMV_Ct1_DOWN_T73Dataset, "T73.BMV_Ct1_DOWN_T73Dataset", row.names = FALSE, col.names = FALSE)
+```
+Extraccion del LFC y padj
+
+```{r}
+res_T73 <- na.omit(res_T73) # Requiere res sin ordenar por padj
+T73.BMV_Ct1_LFC_T73Dataset <- res_T73[res_T73$padj < 0.05 & abs(res_T73$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.BMV_Ct1_LFC_T73Dataset <- as.data.frame(T73.BMV_Ct1_LFC_T73Dataset)
+```
+
+### > CT2 T73+BMV
+
+```{r}
+res_T73 <- results(dds_T73, 
+               contrast=c("grupo_y_Ct_T73", "T73+BMV_Ct2", "T73_mono_Ct2" ), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res_T73[order(res_T73$padj),]
+summary(res_T73)
+
+res_T73 <- na.omit(res_T73)
+DEdata2 <- as.data.frame(res_T73[, c(2,6)])
+DEdata_comunes2 <- DEdata[UP_comunes_2,]
+write.csv(DEdata_comunes2, "DEdata_UP_comunes2.csv", quote = FALSE)
+
+DEdata_comunes2 <- DEdata[DOWN_comunes_2,]
+write.csv(DEdata_comunes2, "DEdata_DOWN_comunes2.csv", quote = FALSE)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YBL072C",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YBL072C", c("T73_mono_Ct2_A", "T73_mono_Ct2_B", "T73_mono_Ct2_C", "T73+BMV_Ct2_A",   "T73+BMV_Ct2_B", "T73+BMV_Ct2_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_T73 <- na.omit(res_T73)
+T73.BMV_Ct2_UP_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange >=1,])
+T73.BMV_Ct2_DOWN_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange <=-1,])
+length(T73.BMV_Ct2_UP_T73Dataset)
+length(T73.BMV_Ct2_DOWN_T73Dataset)
+write.table(T73.BMV_Ct2_UP_T73Dataset, "T73.BMV_Ct2_UP_T73Dataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.BMV_Ct2_DOWN_T73Dataset, "T73.BMV_Ct2_DOWN_T73Dataset", row.names = FALSE, col.names = FALSE)
+```
+
+Extraccion del LFC y padj
+
+```{r}
+res_T73 <- na.omit(res_T73) # Requiere res sin ordenar por padj
+T73.BMV_Ct2_LFC_T73Dataset <- res_T73[res_T73$padj < 0.05 & abs(res_T73$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.BMV_Ct2_LFC_T73Dataset <- as.data.frame(T73.BMV_Ct2_LFC_T73Dataset)
+```
+
+### > CT3 T73+BMV
+
+
+```{r}
+res_T73 <- results(dds_T73, 
+               contrast=c("grupo_y_Ct_T73", "T73+BMV_Ct3", "T73_mono_Ct3" ), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res_T73[order(res_T73$padj),]
+summary(res_T73)
+
+res_T73 <- na.omit(res_T73)
+DEdata3 <- as.data.frame(res_T73[, c(2,6)])
+DEdata_comunes3 <- DEdata3[UP_comunes_3,]
+write.csv(DEdata_comunes3, "DEdata_UP_comunes3.csv", quote = FALSE)
+
+DEdata_comunes3 <- DEdata3[DOWN_comunes_3,]
+write.csv(DEdata_comunes3, "DEdata_DOWN_comunes3.csv", quote = FALSE)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YIL166C",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YIL166C", c("T73_mono_Ct3_A", "T73_mono_Ct3_B", "T73_mono_Ct3_C", "T73+BMV_Ct3_A",   "T73+BMV_Ct3_B", "T73+BMV_Ct3_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_T73 <- na.omit(res_T73)
+T73.BMV_Ct3_UP_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange >=1,])
+T73.BMV_Ct3_DOWN_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange <=-1,])
+length(T73.BMV_Ct3_UP_T73Dataset)
+length(T73.BMV_Ct3_DOWN_T73Dataset)
+write.table(T73.BMV_Ct3_UP_T73Dataset, "T73.BMV_Ct3_UP_T73Dataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.BMV_Ct3_DOWN_T73Dataset, "T73.BMV_Ct3_DOWN_T73Dataset", row.names = FALSE, col.names = FALSE)
+```
+Extraccion del LFC y padj
+
+```{r}
+res_T73 <- na.omit(res_T73) # Requiere res sin ordenar por padj
+T73.BMV_Ct3_LFC_T73Dataset <- res_T73[res_T73$padj < 0.05 & abs(res_T73$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.BMV_Ct3_LFC_T73Dataset <- as.data.frame(T73.BMV_Ct3_LFC_T73Dataset)
+```
+
+## 2.6. T73+CECT vs T73_mono
+
+### > CT1 T73+CECT
+```{r}
+
+res_T73 <- results(dds_T73, 
+               contrast=c("grupo_y_Ct_T73", "T73+CECT_Ct1", "T73_mono_Ct1" ), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res_T73[order(res_T73$padj),]
+summary(res_T73)
+
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YBR072W",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YBR072W", c("T73_mono_Ct1_A", "T73_mono_Ct1_B", "T73_mono_Ct1_C", "T73+CECT_Ct1_A",   "T73+CECT_Ct1_B", "T73+CECT_Ct1_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_T73 <- na.omit(res_T73)
+T73.CECT_Ct1_UP_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange >=1,])
+T73.CECT_Ct1_DOWN_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange <=-1,])
+length(T73.CECT_Ct1_UP_T73Dataset)
+length(T73.CECT_Ct1_DOWN_T73Dataset)
+write.table(T73.CECT_Ct1_UP_T73Dataset, "T73.CECT_Ct1_UP_T73Dataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.CECT_Ct1_DOWN_T73Dataset, "T73.CECT_Ct1_DOWN_T73Dataset", row.names = FALSE, col.names = FALSE)
+```
+
+Extraccion del LFC y padj
+
+```{r}
+res_T73 <- na.omit(res_T73) # Requiere res sin ordenar por padj
+T73.CECT_Ct1_LFC_T73Dataset <- res_T73[res_T73$padj < 0.05 & abs(res_T73$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.CECT_Ct1_LFC_T73Dataset <- as.data.frame(T73.CECT_Ct1_LFC_T73Dataset)
+```
+
+### > CT2 T73+CECT
+```{r}
+res_T73 <- results(dds_T73, 
+               contrast=c("grupo_y_Ct_T73", "T73+CECT_Ct2", "T73_mono_Ct2" ), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res_T73[order(res_T73$padj),]
+summary(res_T73)
+
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YBL072C",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YBL072C", c("T73_mono_Ct2_A", "T73_mono_Ct2_B", "T73_mono_Ct2_C", "T73+CECT_Ct2_A",   "T73+CECT_Ct2_B", "T73+CECT_Ct2_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_T73 <- na.omit(res_T73)
+T73.CECT_Ct2_UP_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange >=1,])
+T73.CECT_Ct2_DOWN_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange <=-1,])
+length(T73.CECT_Ct2_UP_T73Dataset)
+length(T73.CECT_Ct2_DOWN_T73Dataset)
+write.table(T73.CECT_Ct2_UP_T73Dataset, "T73.CECT_Ct2_UP_T73Dataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.CECT_Ct2_DOWN_T73Dataset, "T73.CECT_Ct2_DOWN_T73Dataset", row.names = FALSE, col.names = FALSE)
+```
+
+Extraccion del LFC y padj
+
+```{r}
+res_T73 <- na.omit(res_T73) # Requiere res sin ordenar por padj
+T73.CECT_Ct2_LFC_T73Dataset <- res_T73[res_T73$padj < 0.05 & abs(res_T73$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.CECT_Ct2_LFC_T73Dataset <- as.data.frame(T73.CECT_Ct2_LFC_T73Dataset)
+```
+
+
+### > CT3 T73+CECT
+
+```{r}
+res_T73 <- results(dds_T73, 
+              contrast=c("grupo_y_Ct_T73", "T73+CECT_Ct3", "T73_mono_Ct3" ), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res_T73[order(res_T73$padj),]
+summary(res_T73)
+
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YIL166C",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_T73)["YIL166C", c("T73_mono_Ct3_A", "T73_mono_Ct3_B", "T73_mono_Ct3_C", "T73+CECT_Ct3_A",   "T73+CECT_Ct3_B", "T73+CECT_Ct3_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_T73 <- na.omit(res_T73)
+T73.CECT_Ct3_UP_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange >=1,])
+T73.CECT_Ct3_DOWN_T73Dataset <- row.names(res_T73[res_T73$padj < 0.05 & res_T73$log2FoldChange <=-1,])
+length(T73.CECT_Ct3_UP_T73Dataset)
+length(T73.CECT_Ct3_DOWN_T73Dataset)
+write.table(T73.CECT_Ct3_UP_T73Dataset, "T73.CECT_Ct3_UP_T73Dataset", row.names = FALSE, col.names = FALSE)
+write.table(T73.CECT_Ct3_DOWN_T73Dataset, "T73.CECT_Ct3_DOWN_T73Dataset", row.names = FALSE, col.names = FALSE)
+```
+
+Extraccion del LFC y padj
+
+```{r}
+res_T73 <- na.omit(res_T73) # Requiere res sin ordenar por padj
+T73.CECT_Ct3_LFC_T73Dataset <- res_T73[res_T73$padj < 0.05 & abs(res_T73$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+T73.CECT_Ct3_LFC_T73Dataset <- as.data.frame(T73.CECT_Ct3_LFC_T73Dataset)
+```
+
+## 2.7 Numero de DEG
+
+```{r}
+#evolucion_T73
+#evolucion_BMV
+#http://www.sthda.com/english/wiki/ggplot2-line-plot-quick-start-guide-r-software-and-data-visualization
+evolucion <- data.frame(cepa=rep(c("T73+BMV", "T73+CECT"), each=3),
+                fase=rep(c("EEP", "LEP", "SP"),2),
+                DEG=c(1878,618,447,1355,765,622))
+
+
+
+ggplot(data = evolucion, aes(x = fase, y = DEG, group = cepa)) + 
+  geom_line(aes(color=cepa)) + geom_point(aes(color=cepa)) +
+  xlab("Fase de la fermentación") +
+  ylab("Numero de DEG") +
+  ggtitle("DEG") #+ ylim(,4400)
+
+```
+## 2.8. Comparaciones T73+BMV vs T73+CECT (VENN)
+
+### > CT1
+```{r}
+library(venn)
+venn(list("T73+BMV UP"=T73.BMV_Ct1_UP_T73Dataset,
+          "T73+BMV DOWN"=T73.BMV_Ct1_DOWN_T73Dataset, 
+          "T73+CECT UP"=T73.CECT_Ct1_UP_T73Dataset, 
+          "T73+CECT DOWN"=T73.CECT_Ct1_DOWN_T73Dataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+      box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE,
+   sncs = 1,
+   ilcs = 1)
+title(main = "Genes comunes en S. cerevisiae en competición en EEP", line = -2)
+
+UP_comunes <- intersect(T73.BMV_Ct1_UP_T73Dataset, T73.CECT_Ct1_UP_T73Dataset)
+DOWN_comunes <- intersect(T73.BMV_Ct1_DOWN_T73Dataset, T73.CECT_Ct1_DOWN_T73Dataset)
+UP_solo_con_BMV <-setdiff(T73.BMV_Ct1_UP_T73Dataset, T73.CECT_Ct1_UP_T73Dataset)
+DOWN_solo_con_BMV <- setdiff(T73.BMV_Ct1_DOWN_T73Dataset, T73.CECT_Ct1_DOWN_T73Dataset)
+UP_solo_con_CECT <- setdiff(T73.CECT_Ct1_UP_T73Dataset, T73.BMV_Ct1_UP_T73Dataset)
+DOWN_solo_con_CECT <- setdiff(T73.CECT_Ct1_DOWN_T73Dataset, T73.BMV_Ct1_DOWN_T73Dataset)
+
+write.table(UP_comunes, "UP_comunes.txt", row.names = FALSE, col.names = FALSE)
+write.table(DOWN_comunes, "DOWN_comunes.txt", row.names = FALSE, col.names = FALSE)
+write.table(UP_solo_con_BMV, "UP_solo_con_BMV.txt", row.names = FALSE, col.names = FALSE)
+write.table(DOWN_solo_con_BMV, "DOWN_solo_con_BMV.txt", row.names = FALSE, col.names = FALSE)
+write.table(UP_solo_con_CECT, "UP_solo_con_CECT.txt", row.names = FALSE, col.names = FALSE)
+write.table(DOWN_solo_con_CECT, "DOWN_solo_con_CECT.txt", row.names = FALSE, col.names = FALSE)
+
+```
+
+### > CT2
+```{r}
+venn(list("T73+BMV UP"=T73.BMV_Ct2_UP_T73Dataset,
+          "T73+BMV DOWN"=T73.BMV_Ct2_DOWN_T73Dataset, 
+          "T73+CECT UP"=T73.CECT_Ct2_UP_T73Dataset, 
+          "T73+CECT DOWN"=T73.CECT_Ct2_DOWN_T73Dataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+      box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE,
+   sncs = 1,
+   ilcs = 1)
+title(main = "Genes comunes en S. cerevisiae en competición en LEP", line = -2)
+
+UP_comunes_2 <- intersect(T73.BMV_Ct2_UP_T73Dataset, T73.CECT_Ct2_UP_T73Dataset)
+DOWN_comunes_2 <- intersect(T73.BMV_Ct2_DOWN_T73Dataset, T73.CECT_Ct2_DOWN_T73Dataset)
+UP_solo_con_BMV_2 <-setdiff(T73.BMV_Ct2_UP_T73Dataset, T73.CECT_Ct2_UP_T73Dataset)
+DOWN_solo_con_BMV_2 <- setdiff(T73.BMV_Ct2_DOWN_T73Dataset, T73.CECT_Ct2_DOWN_T73Dataset)
+UP_solo_con_CECT_2 <- setdiff(T73.CECT_Ct2_UP_T73Dataset, T73.BMV_Ct2_UP_T73Dataset)
+DOWN_solo_con_CECT_2 <- setdiff(T73.CECT_Ct2_DOWN_T73Dataset, T73.BMV_Ct2_DOWN_T73Dataset)
+
+write.table(UP_comunes_2, "UP_comunes2.txt", row.names = FALSE, col.names = FALSE)
+write.table(DOWN_comunes_2, "DOWN_comunes2.txt", row.names = FALSE, col.names = FALSE)
+write.table(UP_solo_con_BMV_2, "UP_solo_con_BMV2.txt", row.names = FALSE, col.names = FALSE)
+write.table(DOWN_solo_con_BMV_2, "DOWN_solo_con_BMV2.txt", row.names = FALSE, col.names = FALSE)
+write.table(UP_solo_con_CECT_2, "UP_solo_con_CECT2.txt", row.names = FALSE, col.names = FALSE)
+write.table(DOWN_solo_con_CECT_2, "DOWN_solo_con_CECT2.txt", row.names = FALSE, col.names = FALSE)
+
+```
+
+### > CT3
+```{r}
+venn(list("T73+BMV_Ct3_UP"=T73.BMV_Ct3_UP_T73Dataset,
+          "T73+BMV_Ct3_DOWN"=T73.BMV_Ct3_DOWN_T73Dataset, 
+          "T73+CECT_Ct3_UP"=T73.CECT_Ct3_UP_T73Dataset, 
+          "T73+CECT_Ct3_DOWN"=T73.CECT_Ct3_DOWN_T73Dataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"))
+venn(list("T73+BMV UP"=T73.BMV_Ct3_UP_T73Dataset,
+          "T73+BMV DOWN"=T73.BMV_Ct3_DOWN_T73Dataset, 
+          "T73+CECT UP"=T73.CECT_Ct3_UP_T73Dataset, 
+          "T73+CECT DOWN"=T73.CECT_Ct3_DOWN_T73Dataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+     box = FALSE,
+     ellipse = TRUE,
+     ggplot = FALSE,
+     sncs = 1,
+     ilcs = 1)
+title(main = "Genes comunes en S. cerevisiae en competición en SP", line = -2)
+
+UP_comunes_3 <- intersect(T73.BMV_Ct3_UP_T73Dataset, T73.CECT_Ct3_UP_T73Dataset)
+DOWN_comunes_3 <- intersect(T73.BMV_Ct3_DOWN_T73Dataset, T73.CECT_Ct3_DOWN_T73Dataset)
+UP_solo_con_BMV_3 <-setdiff(T73.BMV_Ct3_UP_T73Dataset, T73.CECT_Ct3_UP_T73Dataset)
+DOWN_solo_con_BMV_3 <- setdiff(T73.BMV_Ct3_DOWN_T73Dataset, T73.CECT_Ct3_DOWN_T73Dataset)
+UP_solo_con_CECT_3 <- setdiff(T73.CECT_Ct3_UP_T73Dataset, T73.BMV_Ct3_UP_T73Dataset)
+DOWN_solo_con_CECT_3 <- setdiff(T73.CECT_Ct3_DOWN_T73Dataset, T73.BMV_Ct3_DOWN_T73Dataset)
+
+write.table(UP_comunes_3, "UP_comunes3.txt", row.names = FALSE, col.names = FALSE)
+write.table(DOWN_comunes_3, "DOWN_comunes3.txt", row.names = FALSE, col.names = FALSE)
+write.table(UP_solo_con_BMV_3, "UP_solo_con_BMV3.txt", row.names = FALSE, col.names = FALSE)
+write.table(DOWN_solo_con_BMV_3, "DOWN_solo_con_BMV3.txt", row.names = FALSE, col.names = FALSE)
+write.table(UP_solo_con_CECT_3, "UP_solo_con_CECT3.txt", row.names = FALSE, col.names = FALSE)
+write.table(DOWN_solo_con_CECT_3, "DOWN_solo_con_CECT3.txt", row.names = FALSE, col.names = FALSE)
+```
+
+```{r}
+library(UpSetR)
+InputList <- list("T73+BMV_Ct3_UP"=T73.BMV_Ct3_UP_T73Dataset,
+                  "T73+BMV_Ct3_DOWN"=T73.BMV_Ct3_DOWN_T73Dataset, 
+                  "T73+CECT_Ct3_UP"=T73.CECT_Ct3_UP_T73Dataset, 
+                  "T73+CECT_Ct3_DOWN"=T73.CECT_Ct3_DOWN_T73Dataset,
+                  "T73+BMV_Ct2_UP"=T73.BMV_Ct2_UP_T73Dataset,
+                  "T73+BMV_Ct2_DOWN"=T73.BMV_Ct2_DOWN_T73Dataset, 
+                  "T73+CECT_Ct2_UP"=T73.CECT_Ct2_UP_T73Dataset, 
+                  "T73+CECT_Ct2_DOWN"=T73.CECT_Ct2_DOWN_T73Dataset,
+                  "T73+BMV_Ct1_UP"=T73.BMV_Ct1_UP_T73Dataset,
+                  "T73+BMV_Ct1_DOWN"=T73.BMV_Ct1_DOWN_T73Dataset, 
+                  "T73+CECT_Ct1_UP"=T73.CECT_Ct1_UP_T73Dataset, 
+                  "T73+CECT_Ct1_DOWN"=T73.CECT_Ct1_DOWN_T73Dataset)
+
+upset(fromList(InputList), nsets = 12, #nintersects = 40, 
+      order.by = "freq", cutoff = 3, mainbar.y.label = "Groups Intersections",
+      sets.x.label = "Genes per group")
+
+
+```
+
+
+# 3. DATASET SU
+
+## 3.1. Diseño_Su
+```{r}
+cultivo_Su <- factor(rep(c("mono", "co", "mono", "co"), each = 9))
+tiempo_Su <- factor(rep(rep(c("Ct1", "Ct2", "Ct3"), each = 3), 4))
+competidor_Su <- factor(rep(c("0", "T73"), each = 9))
+grupo_Su <- factor(rep(c("BMV_mono", "BMV_co", "CECT_mono", "CECT_co"), each = 9))
+cepa_Su <- factor(rep(c("BMV", "BMV", "CECT", "CECT"), each = 9))
+grupo_y_Ct_Su <- factor(rep(c("BMV_mono_Ct1", "BMV_mono_Ct2", "BMV_mono_Ct3", 
+                              "BMV_co_Ct1", "BMV_co_Ct2", "BMV_co_Ct3", 
+                              "CECT_mono_Ct1", "CECT_mono_Ct2", "CECT_mono_Ct3",
+                              "CECT_co_Ct1", "CECT_co_Ct2", "CECT_co_Ct3"), each = 3))
+diseño_Su <- data.frame(cultivo_Su, tiempo_Su, cepa_Su, competidor_Su, grupo_Su, grupo_y_Ct_Su, 
+                     row.names = c("BMV_mono_Ct1_A", "BMV_mono_Ct1_B", "BMV_mono_Ct1_C", 
+                                   "BMV_mono_Ct2_A", "BMV_mono_Ct2_B", "BMV_mono_Ct2_C", 
+                                   "BMV_mono_Ct3_A", "BMV_mono_Ct3_B", "BMV_mono_Ct3_C",
+                                   "BMV_co_Ct1_A", "BMV_co_Ct1_B", "BMV_co_Ct1_C", 
+                                   "BMV_co_Ct2_A", "BMV_co_Ct2_B", "BMV_co_Ct2_C", 
+                                   "BMV_co_Ct3_A", "BMV_co_Ct3_B", "BMV_co_Ct3_C",
+                                   "CECT_mono_Ct1_A", "CECT_mono_Ct1_B", "CECT_mono_Ct1_C", 
+                                   "CECT_mono_Ct2_A", "CECT_mono_Ct2_B", "CECT_mono_Ct2_C", 
+                                   "CECT_mono_Ct3_A", "CECT_mono_Ct3_B", "CECT_mono_Ct3_C",
+                                   "CECT_co_Ct1_A", "CECT_co_Ct1_B", "CECT_co_Ct1_C", 
+                                   "CECT_co_Ct2_A", "CECT_co_Ct2_B", "CECT_co_Ct2_C", 
+                                   "CECT_co_Ct3_A", "CECT_co_Ct3_B", "CECT_co_Ct3_C"
+                                   ))
+diseño_Su
+```
+
+## 3.2. Carga de datos
+```{r}
+library(edgeR)
+
+samples_Su <- read.table("/media/alvaro/DISCO_DURO_ART/TFM/Analisis/All_variables/Files_Su.txt", head = TRUE) 
+
+DGE_List_Su<- readDGE(samples_Su, 
+                   path = "/media/alvaro/DISCO_DURO_ART/TFM/Analisis/All_variables/",
+                   group = c(rep(c("BMV_mono_Ct1", "BMV_mono_Ct2", "BMV_mono_Ct3", 
+                                   "BMV_co_Ct1", "BMV_co_Ct2", "BMV_co_Ct3", 
+                                   "CECT_mono_Ct1", "CECT_mono_Ct2", "CECT_mono_Ct3",
+                                   "CECT_co_Ct1", "CECT_co_Ct2", "CECT_co_Ct3"), each =3)),
+                   labels = row.names(diseño_Su))
+
+counts_Su <- DGE_List_Su$counts
+colnames(counts_Su) <- row.names(diseño_Su)
+dim(counts_Su)
+
+head(DGE_List_Su$samples)
+```
+
+## 3.3. Filtrado
+```{r}
+counts_Su <- counts_Su[rowSums(counts_Su) > 10,]
+dim(counts_Su)
+```
+
+## 3.4. MDS con grupo y tiempo 
+
+```{r}
+dds_Su <- DESeqDataSetFromMatrix(countData = counts_Su,
+                              colData = diseño_Su, 
+                              design = ~ grupo_Su)
+
+dds_Su$grupo_Su <- relevel(dds_Su$grupo_Su, ref = "BMV_mono")
+# Monocultivo de BMV como referencia
+
+
+dds_Su <- DESeq(dds_Su)
+resultsNames(dds_Su)
+#head(coef(dds))
+
+
+```
+
+```{r}
+colors <- c("pink", "purple", "blue", "red")
+form <- c(15, 16, 17)
+col <- colors[as.numeric(diseño_Su$grupo_Su)]
+pch <- form[as.numeric(diseño_Su$tiempo_Su)]
+
+par(mar=c(5, 4, 4, 8), xpd=TRUE)
+plotMDS(dds_Su, col= col, pch = pch, xlab = "PC1", ylab = "PC2")
+legend("topright", inset = c(-0.28, 0.5), legend= c(levels(diseño_Su$grupo_Su)), 
+       col= colors, pch = 19, bty = "n", title = "Muestra")
+legend("topright", inset = c(-0.2, 0.1), legend = c(levels(diseño_Su$tiempo_Su)),  pch = form, bty = "n", title = "Fase")
+title(main = "Fase y grupo en S. uvarum")
+
+
+plotMDS(dds_Su)
+
+```
+
+
+```{r}
+colors <- c("pink", "purple")
+form <- c(15, 16, 17)
+col <- colors[as.numeric(diseño_Su$grupo_Su)]
+pch <- form[as.numeric(diseño_Su$tiempo_Su)]
+
+par(mar=c(5, 4, 4, 8), xpd=TRUE)
+plotMDS(dds_Su[,c(1:18)], col= col, pch = pch, xlab = "PC1", ylab = "PC2")
+legend("topright", inset = c(-0.28, 0.5), legend= c(levels(diseño_Su$grupo_Su))[1:2], 
+       col= colors, pch = 19, bty = "n", title = "Muestra")
+legend("topright", inset = c(-0.2, 0.1), legend = c(levels(diseño_Su$tiempo_Su)),  pch = form, bty = "n", title = "Fase")
+title(main = "Fase y grupo en S. uvarum BMV")
+
+
+plotMDS(dds_Su[,c(1:18)])
+
+```
+
+```{r}
+colors <- c("blue", "red")
+form <- c(15, 16, 17)
+col <- colors[as.numeric(diseño_Su$grupo_Su)]
+pch <- form[as.numeric(diseño_Su$tiempo_Su)]
+
+par(mar=c(5, 4, 4, 8), xpd=TRUE)
+plotMDS(dds_Su[,c(19:36)], col= col, pch = pch, xlab = "PC1", ylab = "PC2")
+legend("topright", inset = c(-0.28, 0.5), legend= c(levels(diseño_Su$grupo_Su))[3:4], 
+       col= colors, pch = 19, bty = "n", title = "Muestra")
+legend("topright", inset = c(-0.2, 0.1), legend = c(levels(diseño_Su$tiempo_Su)),  pch = form, bty = "n", title = "Fase")
+title(main = "Fase y grupo en S. uvarum CECT")
+
+
+plotMDS(dds_Su[,c(19:36)])
+
+```
+
+## *Extraigo los counts normalizados
+```{r}
+norm_counts_Su <- counts(dds_Su, normalized = TRUE)
+```
+
+## 3.5. BMV_co vs BMV_mono
+
+### > CT1 BMV_co
+
+```{r}
+dds_Su <- DESeqDataSetFromMatrix(countData = counts_Su,
+                              colData = diseño_Su, 
+                              design = ~ grupo_y_Ct_Su)
+
+dds_Su$grupo_y_Ct_Su <- relevel(dds_Su$grupo_y_Ct_Su, ref = "BMV_mono_Ct1")
+# Monocultivo de BMV como referencia
+
+
+dds_Su <- DESeq(dds_Su)
+resultsNames(dds_Su)
+#head(coef(dds))
+
+
+```
+
+```{r}
+
+res_Su <- results(dds_Su,
+                  name = "grupo_y_Ct_Su_BMV_co_Ct1_vs_BMV_mono_Ct1",
+                  alpha = 0.05, 
+                  lfcThreshold = 1)
+
+res_Su[order(res_Su$padj),]
+summary(res_Su)
+
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["YOL154W",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["YOL154W", c("BMV_mono_Ct1_A", "BMV_mono_Ct1_B", "BMV_mono_Ct1_C", "BMV_co_Ct1_A",   "BMV_co_Ct1_B", "BMV_co_Ct1_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_Su <- na.omit(res_Su)
+BMV_co_Ct1_UP_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange >=1,])
+BMV_co_Ct1_DOWN_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange <=1,])
+length(BMV_co_Ct1_UP_SuDataset)
+length(BMV_co_Ct1_DOWN_SuDataset)
+```
+
+Extraccion del LFC y padj
+
+```{r}
+res_Su <- na.omit(res_Su) # Requiere res sin ordenar por padj
+BMV_co_Ct1_LFC_SuDataset <- res_Su[res_Su$padj < 0.05 & abs(res_Su$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+BMV_co_Ct1_LFC_SuDataset <- as.data.frame(BMV_co_Ct1_LFC_SuDataset)
+```
+
+
+
+### > CT2 BMV_co
+
+```{r}
+
+res_Su <- results(dds_Su, 
+               contrast=c("grupo_y_Ct_Su", "BMV_co_Ct2", "BMV_mono_Ct2" ), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res_Su[order(res_Su$padj),]
+summary(res_Su)
+
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["YOL154W",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["YOL154W", c("BMV_mono_Ct2_A", "BMV_mono_Ct2_B", "BMV_mono_Ct2_C", "BMV_co_Ct2_A",   "BMV_co_Ct2_B", "BMV_co_Ct2_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_Su <- na.omit(res_Su)
+BMV_co_Ct2_UP_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange >=1,])
+BMV_co_Ct2_DOWN_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange <=1,])
+length(BMV_co_Ct2_UP_SuDataset)
+length(BMV_co_Ct2_DOWN_SuDataset)
+```
+
+Extraccion del LFC y padj
+
+```{r}
+res_Su <- na.omit(res_Su) # Requiere res sin ordenar por padj
+BMV_co_Ct2_LFC_SuDataset <- res_Su[res_Su$padj < 0.05 & abs(res_Su$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+BMV_co_Ct2_LFC_SuDataset <- as.data.frame(BMV_co_Ct2_LFC_SuDataset)
+```
+
+
+### > CT3 BMV_co
+
+AQUI DDS TIENE CT1 y BMV_mono COMO REFERENCIA PARA PODER COMPARAR BMV_co_Ct3 vs BMV_mono_Ct3. USamos el anterior
+
+```{r}
+
+res_Su <- results(dds_Su, 
+               contrast=c("grupo_y_Ct_Su", "BMV_co_Ct3", "BMV_mono_Ct3" ), 
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res_Su[order(res_Su$padj),]
+summary(res_Su)
+
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["REP1",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["REP1", c("BMV_mono_Ct3_A", "BMV_mono_Ct3_B", "BMV_mono_Ct3_C", "BMV_co_Ct3_A",   "BMV_co_Ct3_B", "BMV_co_Ct3_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_Su <- na.omit(res_Su)
+BMV_co_Ct3_UP_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange >=1,])
+BMV_co_Ct3_DOWN_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange <=1,])
+length(BMV_co_Ct3_UP_SuDataset)
+length(BMV_co_Ct3_DOWN_SuDataset)
+```
+
+Extraccion del LFC y padj
+
+```{r}
+res_Su <- na.omit(res_Su) # Requiere res sin ordenar por padj
+BMV_co_Ct3_LFC_SuDataset <- res_Su[res_Su$padj < 0.05 & abs(res_Su$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+BMV_co_Ct3_LFC_SuDataset <- as.data.frame(BMV_co_Ct3_LFC_SuDataset)
+```
+
+## 3.6. CECT_co vs CECT_mono
+
+### > CT1 CECT_co
+
+```{r}
+
+res_Su <- results(dds_Su, 
+                  contrast=c("grupo_y_Ct_Su", "CECT_co_Ct1", "CECT_mono_Ct1" ),
+                  alpha = 0.05, 
+                  lfcThreshold = 1)
+
+res_Su[order(res_Su$padj),]
+summary(res_Su)
+
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["REP1",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["YBR072W", c("CECT_mono_Ct1_A", "CECT_mono_Ct1_B", "CECT_mono_Ct1_C", "CECT_co_Ct1_A",   "CECT_co_Ct1_B", "CECT_co_Ct1_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_Su <- na.omit(res_Su)
+CECT_co_Ct1_UP_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange >=1,])
+CECT_co_Ct1_DOWN_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange <=1,])
+length(CECT_co_Ct1_UP_SuDataset)
+length(CECT_co_Ct1_DOWN_SuDataset)
+```
+
+Extraccion del LFC y padj
+
+```{r}
+res_Su <- na.omit(res_Su) # Requiere res sin ordenar por padj
+CECT_co_Ct1_LFC_SuDataset <- res_Su[res_Su$padj < 0.05 & abs(res_Su$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+CECT_co_Ct1_LFC_SuDataset <- as.data.frame(CECT_co_Ct1_LFC_SuDataset)
+```
+
+
+### > CT2 CECT_co
+
+```{r}
+
+res_Su <- results(dds_Su, 
+                contrast=c("grupo_y_Ct_Su", "CECT_co_Ct2", "CECT_mono_Ct2" ),
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res_Su[order(res_Su$padj),]
+summary(res_Su)
+
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["REP1",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["REP1", c("CECT_mono_Ct2_A", "CECT_mono_Ct2_B", "CECT_mono_Ct2_C", "CECT_co_Ct2_A",   "CECT_co_Ct2_B", "CECT_co_Ct2_C" )], las = 3)
+```
+
+Extraccion de genes
+
+```{r}
+res_Su <- na.omit(res_Su)
+CECT_co_Ct2_UP_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange >=1,])
+CECT_co_Ct2_DOWN_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange <=1,])
+length(CECT_co_Ct2_UP_SuDataset)
+length(CECT_co_Ct2_DOWN_SuDataset)
+```
+
+Extraccion del LFC y padj
+
+```{r}
+res_Su <- na.omit(res_Su) # Requiere res sin ordenar por padj
+CECT_co_Ct2_LFC_SuDataset <- res_Su[res_Su$padj < 0.05 & abs(res_Su$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+CECT_co_Ct2_LFC_SuDataset <- as.data.frame(CECT_co_Ct2_LFC_SuDataset)
+```
+
+### > CT3 CECT_co
+
+```{r}
+
+res_Su <- results(dds_Su, 
+                contrast=c("grupo_y_Ct_Su", "CECT_co_Ct3", "CECT_mono_Ct3" ),
+               alpha = 0.05, 
+               lfcThreshold = 1)
+
+res_Su[order(res_Su$padj),]
+summary(res_Su)
+
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["REP1",], las = 3)
+```
+
+```{r}
+par(mar = c(10, 5, 4, 2) + 0.1, cex.lab = 0.2, cex.axis = 0.6)
+barplot(assay(dds_Su)["REP1", c("CECT_mono_Ct3_A", "CECT_mono_Ct3_B", "CECT_mono_Ct3_C", "CECT_co_Ct3_A",   "CECT_co_Ct3_B", "CECT_co_Ct3_C" )], las = 3)
+```
+
+
+Extraccion de genes
+
+```{r}
+res_Su <- na.omit(res_Su)
+CECT_co_Ct3_UP_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange >=1,])
+CECT_co_Ct3_DOWN_SuDataset <- row.names(res_Su[res_Su$padj < 0.05 & res_Su$log2FoldChange <=1,])
+length(CECT_co_Ct3_UP_SuDataset)
+length(CECT_co_Ct3_DOWN_SuDataset)
+```
+
+Extraccion del LFC y padj
+
+```{r}
+res_Su <- na.omit(res_Su) # Requiere res sin ordenar por padj
+CECT_co_Ct3_LFC_SuDataset <- res_Su[res_Su$padj < 0.05 & abs(res_Su$log2FoldChange) >=1, c("log2FoldChange", "padj")]
+CECT_co_Ct3_LFC_SuDataset <- as.data.frame(CECT_co_Ct3_LFC_SuDataset)
+```
+
+
+# 4. COMPARACIONES ENTRE DATASETS (FULL vs T73 / FULL vs Su)
+
+## 4.1. Venn
+
+### > T73+BMV
+CT1
+```{r}
+library(venn)
+venn(list("UP dataset completo"=T73.BMV_Ct1_UP_FullDataset,
+          "DOWN dataset completo"=T73.BMV_Ct1_DOWN_FullDataset, 
+          "UP dataset dividido"=T73.BMV_Ct1_UP_T73Dataset, 
+          "DOWN dataset dividido"=T73.BMV_Ct1_DOWN_T73Dataset),
+   zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+   box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE,
+   sncs = 1,
+   ilcs = 1) 
+title(main = "T73+BMV Ct1", line = -2) 
+```
+
+CT2
+```{r}
+venn(list("UP dataset completo"=T73.BMV_Ct2_UP_FullDataset,
+          "DOWN dataset completo"=T73.BMV_Ct2_DOWN_FullDataset, 
+          "UP dataset dividido"=T73.BMV_Ct2_UP_T73Dataset, 
+          "DOWN dataset dividido"=T73.BMV_Ct2_DOWN_T73Dataset),
+   zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+   box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE,
+   sncs = 1,
+   ilcs = 1) 
+title(main = "T73+BMV Ct2", line = -2)
+```
+
+
+CT3
+```{r}
+venn(list("UP dataset completo"=T73.BMV_Ct3_UP_FullDataset,
+          "DOWN dataset completo"=T73.BMV_Ct3_DOWN_FullDataset, 
+          "UP dataset dividido"=T73.BMV_Ct3_UP_T73Dataset, 
+          "DOWN dataset dividido"=T73.BMV_Ct3_DOWN_T73Dataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+     box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE,
+   sncs = 1,
+   ilcs = 1) 
+title(main = "T73+BMV Ct3", line = -2)
+```
+
+
+
+### > T73+CECT
+CT1
+```{r}
+venn(list("UP dataset completo"=T73.CECT_Ct1_UP_FullDataset,
+          "DOWN dataset completo"=T73.CECT_Ct1_DOWN_FullDataset, 
+          "UP dataset dividido"=T73.CECT_Ct1_UP_T73Dataset, 
+          "DOWN dataset dividido"=T73.CECT_Ct1_DOWN_T73Dataset),
+   zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+   box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE,
+   sncs = 1,
+   ilcs = 1) 
+title(main = "T73+CECT Ct1", line = -2)
+```
+
+CT2
+```{r}
+venn(list("UP dataset completo"=T73.CECT_Ct2_UP_FullDataset,
+          "DOWN dataset completo"=T73.CECT_Ct2_DOWN_FullDataset, 
+          "UP dataset dividido"=T73.CECT_Ct2_UP_T73Dataset, 
+          "DOWN dataset dividido"=T73.CECT_Ct2_DOWN_T73Dataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+     box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE,
+   sncs = 1,
+   ilcs = 1) 
+title(main = "T73+CECT Ct2", line = -2)
+```
+
+CT3
+```{r}
+venn(list("UP dataset completo"=T73.CECT_Ct3_UP_FullDataset,
+          "DOWN dataset completo"=T73.CECT_Ct3_DOWN_FullDataset, 
+          "UP dataset dividido"=T73.CECT_Ct3_UP_T73Dataset, 
+          "DOWN dataset dividido"=T73.CECT_Ct3_DOWN_T73Dataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+     box = FALSE,
+     ellipse = TRUE,
+     ggplot = FALSE,
+   sncs = 1,
+   ilcs = 1) 
+title(main = "T73+CECT Ct3", line = -2)
+```
+
+### > BMV_co
+CT1
+```{r}
+venn(list("UP dataset completo"=BMV_co_Ct1_UP_FullDataset,
+          "DOWN dataset completo"=BMV_co_Ct1_DOWN_FullDataset, 
+          "UP dataset dividido"=BMV_co_Ct1_UP_SuDataset, 
+          "DOWN dataset dividido"=BMV_co_Ct1_DOWN_SuDataset),
+   zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+   box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE) 
+title(main = "Cocultivo BMV Ct1", line = -2)
+```
+
+CT2
+```{r}
+venn(list("UP dataset completo"=BMV_co_Ct2_UP_FullDataset,
+          "DOWN dataset completo"=BMV_co_Ct2_DOWN_FullDataset, 
+          "UP dataset dividido"=BMV_co_Ct2_UP_SuDataset, 
+          "DOWN dataset dividido"=BMV_co_Ct2_DOWN_SuDataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+     box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE) 
+title(main = "Cocultivo BMV Ct2", line = -2)
+```
+
+CT3
+```{r}
+venn(list("UP dataset completo"=BMV_co_Ct3_UP_FullDataset,
+          "DOWN dataset completo"=BMV_co_Ct3_DOWN_FullDataset, 
+          "UP dataset dividido"=BMV_co_Ct3_UP_SuDataset, 
+          "DOWN dataset dividido"=BMV_co_Ct3_DOWN_SuDataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+     box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE) 
+title(main = "Cocultivo BMV Ct3", line = -2)
+```
+
+### > CECT_co
+CT1
+```{r}
+venn(list("UP dataset completo"=CECT_co_Ct1_UP_FullDataset,
+          "DOWN dataset completo"=CECT_co_Ct1_DOWN_FullDataset, 
+          "UP dataset dividido"=CECT_co_Ct1_UP_SuDataset, 
+          "DOWN dataset dividido"=CECT_co_Ct1_DOWN_SuDataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+     box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE) 
+title(main = "Cocultio CECT Ct1", line = -2)
+```
+
+CT2
+```{r}
+venn(list("UP dataset completo"=CECT_co_Ct2_UP_FullDataset,
+          "DOWN dataset completo"=CECT_co_Ct2_DOWN_FullDataset, 
+          "UP dataset dividido"=CECT_co_Ct2_UP_SuDataset, 
+          "DOWN dataset dividido"=CECT_co_Ct2_DOWN_SuDataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+     box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE) 
+title(main = "Cocultivo CECT Ct2", line = -2)
+```
+
+CT3
+```{r}
+venn(list("UP dataset completo"=CECT_co_Ct3_UP_FullDataset,
+          "DOWN dataset completo"=CECT_co_Ct3_DOWN_FullDataset, 
+          "UP dataset dividido"=CECT_co_Ct3_UP_SuDataset, 
+          "DOWN dataset dividido"=CECT_co_Ct3_DOWN_SuDataset),
+     zcolor = c("#999999", "#E69F00", "#56B4E9", "#009E73"),
+     box = FALSE,
+   ellipse = TRUE,
+   ggplot = FALSE) 
+title(main = "Cocultivo CECT Ct3", line = -2)
+```
+
+
+## 4.2. Nº DEG
+
+Numero de DEG
+```{r}
+#evolucion_T73
+#evolucion_BMV
+#http://www.sthda.com/english/wiki/ggplot2-line-plot-quick-start-guide-r-software-and-data-visualization
+evolucion <- data.frame(Grupo=rep(c("T73+BMV", "T73+CECT","BMVco", "CECTco"), each=3),
+                        fase=rep(c("EEP", "LEP", "SP"),4),
+                        DEG=c(1878, 618, 447, 1355, 705, 562, 11, 5, 1, 16,11, 8))
+
+
+
+ggplot(data = evolucion, aes(x = fase, y = DEG, group = Grupo)) + 
+  geom_line(aes(color=Grupo)) + geom_point(aes(color=Grupo)) +
+  xlab("Fase de la fermentación") +
+  ylab("Numero de DEG") +
+  ggtitle("Dinámica de la expresión diferencial") + ylim(0, 2000) +
+  theme(axis.text.x = element_text(face="plain", color="black", size=12),
+        axis.text.y = element_text(face="plain", color="black", size=12),
+        axis.title.x = element_text(color="black", size=14, face="bold"),
+        axis.title.y = element_text(color="black", size=14, face="bold"),
+        plot.title = element_text(color="black", size=16, face="bold"),
+        legend.title = element_text(face = "bold", size = 12),
+        legend.text = element_text(size = 10)) + scale_color_manual(values=c("#999999", "green", "red", "blue"))
+
+
+
+```
+
+
+## 4.3. Crecimiento
+
+```{r}
+Lib_size <- DGE_List$samples[,c(2,3)]
+Fase <- rep(c("EEP", "LEP", "SP"), each = 3)
+
+Lib_size <- cbind(Lib_size, Fase)
+
+proporciones_names <- rep(c("T73/BMV_1","T73/BMV_2", "T73/BMV_3", "T73/CECT_1", "T73/CECT_2", "T73/CECT_3"), each = 3)
+Fase <- rep(c("EEP", "LEP", "SP"), each = 3)
+proporciones_grupos <- rep(c("T73/BMV","T73/CECT"), each = 9) 
+proporciones_valores <- c(Lib_size[10,2]/Lib_size[37,2],
+                          Lib_size[11,2]/Lib_size[38,2],
+                          Lib_size[12,2]/Lib_size[39,2], # T73+BMV/BMVco Ct1
+                          Lib_size[13,2]/Lib_size[40,2],
+                          Lib_size[14,2]/Lib_size[41,2],
+                          Lib_size[15,2]/Lib_size[42,2],# T73+BMV/BMVco Ct2
+                          Lib_size[16,2]/Lib_size[43,2],
+                          Lib_size[17,2]/Lib_size[44,2],
+                          Lib_size[18,2]/Lib_size[45,2],# T73+BMV/BMVco Ct3
+                          Lib_size[19,2]/Lib_size[55,2],
+                          Lib_size[20,2]/Lib_size[56,2],
+                          Lib_size[21,2]/Lib_size[57,2],# T73+CECT/CECTco Ct1
+                          Lib_size[22,2]/Lib_size[58,2],
+                          Lib_size[23,2]/Lib_size[59,2],
+                          Lib_size[24,2]/Lib_size[60,2], #T73+CECT/CECTco Ct2
+                          Lib_size[25,2]/Lib_size[61,2],
+                          Lib_size[26,2]/Lib_size[62,2],
+                          Lib_size[27,2]/Lib_size[63,2]) #T73+CECT/CECTco Ct3  
+
+Proportion <- data.frame(proporciones_names, Fase, proporciones_grupos, proporciones_valores)
+Proportion_mean <- Proportion %>% group_by(proporciones_names) %>% summarise(media = mean(proporciones_valores), sd = sd(proporciones_valores))
+Fase <- rep(c("EEP", "LEP", "SP"), 2)
+Grupo <- rep(c("T73/BMV","T73/CECT"), each = 3)
+Proportion_mean <- cbind(Proportion_mean, Fase)
+Proportion_mean <- cbind(Proportion_mean, Grupo)
+
+ggplot(data = Proportion_mean, aes(x = Fase  , y = media, group =
+                                 Grupo)) + 
+  geom_line(aes(color=Grupo), size = 1) + geom_point(aes(color=Grupo)) + 
+  geom_errorbar(aes(ymin=media-sd, ymax=media+sd), width=.2, position=position_dodge(0.01)) +
+  xlab("Fase de la fermentación") +
+  ylab("Proporción del número de lecturas") +
+  ggtitle("Abundancia relativa en cocultivos") +
+  theme(axis.text.x = element_text(face="plain", color="black", size=12),
+        axis.text.y = element_text(face="plain", color="black", size=12),
+        axis.title.x = element_text(color="black", size=14, face="bold"),
+        axis.title.y = element_text(color="black", size=14, face="bold"),
+        plot.title = element_text(color="black", size=16, face="bold"),
+        legend.title = element_text(face = "bold", size = 12),
+        legend.text = element_text(size = 10)) + scale_color_manual(values=c("darkorange3", "darkorchid3"))
+
+```
+
+```{r}
+Lib_size <- DGE_List$samples[,c(2,3)]
+Fase <- rep(c("EEP", "LEP", "SP"), each = 3)
+
+Lib_size <- cbind(Lib_size, Fase)
+
+proporciones_names <- rep(c("T73+BMV_1","T73+BMV_2", "T73+BMV_3", "T73+CECT_1", "T73+CECT_2", "T73+CECT_3", 
+                            "BMVco_1", "BMVco_2", "BMVco_3", "CECTco_1", "CECTco_2", "CECTco_3"), each = 3)
+Fase <- rep(c("EEP", "LEP", "SP"), each = 3)
+proporciones_grupos <- rep(c("T73+BMV","T73+CECT"), each = 9) 
+proporciones_valores <- c(Lib_size[10,2]/(Lib_size[37,2]+Lib_size[10,2]),
+                          Lib_size[11,2]/(Lib_size[38,2]+Lib_size[11,2]),
+                          Lib_size[12,2]/(Lib_size[39,2]+Lib_size[12,2]), # T73+BMV Ct1
+                          Lib_size[13,2]/(Lib_size[40,2]+Lib_size[13,2]),
+                          Lib_size[14,2]/(Lib_size[41,2]+Lib_size[14,2]),
+                          Lib_size[15,2]/(Lib_size[42,2]+Lib_size[15,2]),# T73+BMV Ct2
+                          Lib_size[16,2]/(Lib_size[43,2]+Lib_size[16,2]),
+                          Lib_size[17,2]/(Lib_size[44,2]+Lib_size[17,2]),
+                          Lib_size[18,2]/(Lib_size[45,2]+Lib_size[18,2]),# T73+BMV Ct3
+                          Lib_size[19,2]/(Lib_size[55,2]+Lib_size[19,2]),
+                          Lib_size[20,2]/(Lib_size[56,2]+Lib_size[20,2]),
+                          Lib_size[21,2]/(Lib_size[57,2]+Lib_size[21,2]),# T73+CECT Ct1
+                          Lib_size[22,2]/(Lib_size[58,2]+Lib_size[22,2]),
+                          Lib_size[23,2]/(Lib_size[59,2]+Lib_size[23,2]),
+                          Lib_size[24,2]/(Lib_size[60,2]+Lib_size[24,2]), #T73+CECT Ct2
+                          Lib_size[25,2]/(Lib_size[61,2]+Lib_size[25,2]),
+                          Lib_size[26,2]/(Lib_size[62,2]+Lib_size[26,2]),
+                          Lib_size[27,2]/(Lib_size[63,2]+Lib_size[27,2]),
+                          1 - Lib_size[10,2]/(Lib_size[37,2]+Lib_size[10,2]),
+                          1 - Lib_size[11,2]/(Lib_size[38,2]+Lib_size[11,2]),
+                          1 - Lib_size[12,2]/(Lib_size[39,2]+Lib_size[12,2]), # BMV Ct1
+                          1 - Lib_size[13,2]/(Lib_size[40,2]+Lib_size[13,2]),
+                          1 - Lib_size[14,2]/(Lib_size[41,2]+Lib_size[14,2]),
+                          1 - Lib_size[15,2]/(Lib_size[42,2]+Lib_size[15,2]),# BMV Ct2
+                          1 - Lib_size[16,2]/(Lib_size[43,2]+Lib_size[16,2]),
+                          1 - Lib_size[17,2]/(Lib_size[44,2]+Lib_size[17,2]),
+                          1 - Lib_size[18,2]/(Lib_size[45,2]+Lib_size[18,2]),# BMV Ct3
+                          1 - Lib_size[19,2]/(Lib_size[55,2]+Lib_size[19,2]),
+                          1 - Lib_size[20,2]/(Lib_size[56,2]+Lib_size[20,2]),
+                          1 - Lib_size[21,2]/(Lib_size[57,2]+Lib_size[21,2]),# CECT Ct1
+                          1 - Lib_size[22,2]/(Lib_size[58,2]+Lib_size[22,2]),
+                          1 - Lib_size[23,2]/(Lib_size[59,2]+Lib_size[23,2]),
+                          1 - Lib_size[24,2]/(Lib_size[60,2]+Lib_size[24,2]), #CECT Ct2
+                          1 - Lib_size[25,2]/(Lib_size[61,2]+Lib_size[25,2]),
+                          1 - Lib_size[26,2]/(Lib_size[62,2]+Lib_size[26,2]),
+                          1 - Lib_size[27,2]/(Lib_size[63,2]+Lib_size[27,2]))#CECT Ct3 
+proporciones_valores <- proporciones_valores * 100
+
+Proportion <- data.frame(proporciones_names, Fase, proporciones_grupos, proporciones_valores)
+Proportion_mean <- Proportion %>% group_by(proporciones_names) %>% summarise(media = mean(proporciones_valores), sd = sd(proporciones_valores))
+Fase <- rep(c("EEP", "LEP", "SP"), 2)
+Grupo <- rep(c("BMV","CECT", "T73", "T73"), each = 3)
+Proportion_mean <- cbind(Proportion_mean, Fase)
+Proportion_mean <- cbind(Proportion_mean, Grupo)
+
+BMV_proportion <- Proportion_mean[c(1,2,3,7,8,9),]
+CECT_proportion <- Proportion_mean[-c(1,2,3,7,8,9),]
+
+ggplot(data, aes(fill=condition, y=value, x=specie)) + 
+  geom_bar(position="fill", stat="identity")
+
+ggplot(data = BMV_proportion, aes(fill = Grupo, x = Fase  , y = media)) + 
+  geom_bar(position="fill", stat="identity", width = 0.5) +
+  xlab("Fase de la fermentación") + geom_col(width = 0.5) +
+  ylab("Porcentaje de lecturas") +
+  ggtitle("Abundancia relativa en cocultivos T73+BMV") +
+  theme(axis.text.x = element_text(face="plain", color="black", size=12),
+        axis.text.y = element_text(face="plain", color="black", size=12),
+        axis.title.x = element_text(color="black", size=14, face="bold"),
+        axis.title.y = element_text(color="black", size=14, face="bold"),
+        plot.title = element_text(color="black", size=16, face="bold"),
+        legend.title = element_text(face = "bold", size = 12),
+        legend.text = element_text(size = 10)) + scale_fill_manual(values = c("darkgrey", "coral"))
+
+ggplot(data = CECT_proportion, aes(fill = Grupo, x = Fase  , y = media)) + 
+  geom_bar(position="fill", stat="identity", width = 0.5) +  geom_col(width = 0.5) +
+  xlab("Fase de la fermentación") +
+  ylab("Porcentaje de lecturas de lecturas") +
+  ggtitle("Abundancia relativa en cocultivos T73+CECT") +
+  theme(axis.text.x = element_text(face="plain", color="black", size=12),
+        axis.text.y = element_text(face="plain", color="black", size=12),
+        axis.title.x = element_text(color="black", size=14, face="bold"),
+        axis.title.y = element_text(color="black", size=14, face="bold"),
+        plot.title = element_text(color="black", size=16, face="bold"),
+        legend.title = element_text(face = "bold", size = 12),
+        legend.text = element_text(size = 10)) + scale_fill_manual(values = c("darkolivegreen3", "coral"))
+
+
+```
